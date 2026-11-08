@@ -1,7 +1,7 @@
 # Voz Looper — documento de diseño
 
 Fecha: 2026-11-08
-Estado: borrador para revisión
+Estado: aprobado
 
 ## 1. Objetivo
 
@@ -42,8 +42,9 @@ lo samplea por su entrada.
   Chromium + Playwright usando `OfflineAudioContext`.
 - Sin servidor ni cuentas. Las preferencias (asignaciones MIDI, escala,
   posición de perillas) se guardan en `localStorage`.
-- Publicación en **GitHub Pages** (paso 5), necesaria para usarla en iPad:
-  el micrófono solo funciona en páginas `https`.
+- Publicación en **GitHub Pages** desde el paso 1: cada cambio subido se
+  publica solo, y el usuario prueba abriendo un link (sin instalar nada).
+  Además el micrófono solo funciona en páginas `https`.
 
 ## 3. Flujo del sonido
 
@@ -184,11 +185,12 @@ Mientras se mantiene el pad 6, repite el último fragmento de la salida:
 
 ## 8. Orden de construcción
 
-1. Micrófono, 4 loops y pads del LPD8 (incluye monitor MIDI y "aprender").
+1. Micrófono, 4 loops y pads del LPD8 (incluye monitor MIDI, "aprender" y
+   publicación automática en GitHub Pages).
 2. Perillas y efectos.
 3. Autotune automático.
 4. Modo notas con los pads.
-5. Ajustes táctiles, publicación en GitHub Pages y prueba en iPad.
+5. Ajustes táctiles y prueba en iPad.
 
 Cada paso queda funcionando y probado antes del siguiente.
 
