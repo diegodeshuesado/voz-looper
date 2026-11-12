@@ -113,4 +113,44 @@ describe('LooperCore', () => {
     // Sin compensación caería en 237 (37 + 2·100); con latencia 10 cae 10 muestras antes.
     expect(137 + hit).toBe(37 + 200 - 10);
   });
+
+  test('al revés reproduce el loop invertido', () => {
+    const core = new LooperCore(SR);
+    core.tap(0);
+    run(core, [1, 2, 3, 4]);
+    core.tap(0); // pos 4, idx 0
+    core.setReverse(true);
+    expect(run(core, fill(4, 0))).toEqual([4, 3, 2, 1]);
+  });
+
+  test('velocidad 2 recorre el loop al doble', () => {
+    const core = new LooperCore(SR, { smoothing: false });
+    core.tap(0);
+    run(core, [0, 1, 2, 3, 4, 5, 6, 7]);
+    core.tap(0);
+    core.setRate(2);
+    expect(run(core, fill(4, 0))).toEqual([0, 2, 4, 6]);
+  });
+
+  test('velocidad 0.5 interpola entre muestras', () => {
+    const core = new LooperCore(SR, { smoothing: false });
+    core.tap(0);
+    run(core, [0, 2, 4, 6]);
+    core.tap(0);
+    core.setRate(0.5);
+    expect(run(core, fill(4, 0))).toEqual([0, 1, 2, 3]);
+  });
+
+  test('velocidad y al revés juntos nunca leen fuera del buffer', () => {
+    const core = new LooperCore(SR);
+    core.tap(0);
+    run(core, Array.from({ length: 333 }, (_, i) => Math.sin(i)));
+    core.tap(0);
+    core.setReverse(true);
+    for (const r of [0.5, 0.73, 1.9, 2]) {
+      core.setRate(r);
+      const out = run(core, fill(1000, 0));
+      expect(out.every((v) => Number.isFinite(v) && Math.abs(v) <= 1)).toBe(true);
+    }
+  });
 });

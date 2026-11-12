@@ -4,6 +4,8 @@ export interface LooperOptions {
   maxSeconds?: number;
   latencySamples?: number;
   tracks?: number;
+  /** Suaviza los cambios de velocidad (~20 ms). Las pruebas lo apagan. */
+  smoothing?: boolean;
 }
 
 interface Track {
@@ -22,13 +24,18 @@ interface Track {
 export class LooperCore {
   readonly states: TrackState[];
   private tracksData: Track[];
-  private pos = 0;
+  private pos = 0; // posición virtual de reproducción (avanza `rate` por muestra)
+  private rate = 1;
+  private targetRate = 1;
+  private reverse = false;
+  private readonly rateCoef: number;
   private base: number | null = null;
   private readonly max: number;
   private readonly latency: number;
 
   constructor(sampleRate: number, opts: LooperOptions = {}) {
-    const { maxSeconds = 30, latencySamples = 0, tracks = 4 } = opts;
+    const { maxSeconds = 30, latencySamples = 0, tracks = 4, smoothing = true } = opts;
+    this.rateCoef = smoothing ? 1 - Math.exp(-1 / (0.005 * sampleRate)) : 1;
     this.max = Math.round(maxSeconds * sampleRate);
     this.latency = latencySamples;
     this.tracksData = Array.from({ length: tracks }, () => ({
@@ -44,6 +51,16 @@ export class LooperCore {
 
   get baseLength(): number | null {
     return this.base;
+  }
+
+  /** Velocidad de los loops (ardilla/monstruo): 0.5 a 2. */
+  setRate(rate: number): void {
+    this.targetRate = Math.min(2, Math.max(0.5, rate));
+    if (this.rateCoef === 1) this.rate = this.targetRate;
+  }
+
+  setReverse(on: boolean): void {
+    this.reverse = on;
   }
 
   tap(track: number): void {
@@ -84,18 +101,21 @@ export class LooperCore {
   process(input: Float32Array, output: Float32Array): void {
     output.fill(0);
     for (let i = 0; i < output.length; i++) {
-      const p = this.pos + i;
+      const p = this.pos;
       for (let k = 0; k < this.tracksData.length; k++) {
         const t = this.tracksData[k];
         if (t.state === 'playing') {
-          output[i] += t.buf[mod(p - t.anchor, t.length)];
+          let idx = mod(p - t.anchor, t.length);
+          if (this.reverse) idx = mod(t.length - 1 - idx, t.length);
+          output[i] += readInterpolated(t.buf, t.length, idx);
         } else if (t.state === 'recording') {
           t.buf[t.recorded++] = input[i] ?? 0;
           if (t.recorded >= this.recordLimit()) this.close(k);
         }
       }
+      this.rate += (this.targetRate - this.rate) * this.rateCoef;
+      this.pos += this.rate;
     }
-    this.pos += output.length;
   }
 
   private recordLimit(): number {
@@ -126,6 +146,15 @@ export class LooperCore {
   private sync(): void {
     this.tracksData.forEach((t, i) => (this.states[i] = t.state));
   }
+}
+
+function readInterpolated(buf: Float32Array, length: number, idx: number): number {
+  let i0 = Math.floor(idx);
+  if (i0 >= length) i0 = 0; // redondeo de punto flotante en el borde
+  const frac = idx - i0;
+  if (frac === 0) return buf[i0];
+  const i1 = i0 + 1 === length ? 0 : i0 + 1;
+  return buf[i0] * (1 - frac) + buf[i1] * frac;
 }
 
 function mod(a: number, n: number): number {
