@@ -23,3 +23,12 @@ test('notas de los pads', () => {
   expect(padNote(4, 0, SCALES.mayor, 50)).toBe(55);
   expect(padNote(5, 9, SCALES.pentatonica, 57)).toBe(69); // 6º grado de pentatónica = siguiente octava
 });
+
+test('modo notas: la octava sigue a la voz sin brincar cuando tiembla cerca de la tónica', async () => {
+  const { padTarget } = await import('../src/autotune/scales');
+  expect(padTarget(0, 0, SCALES.mayor, 59.9)).toBe(60);
+  expect(padTarget(0, 0, SCALES.mayor, 60.1)).toBe(60);
+  expect(padTarget(2, 0, SCALES.mayor, 69)).toBe(64); // Mi más cercano a La4
+  expect(padTarget(7, 0, SCALES.mayor, 60)).toBe(72); // el pad 8 es la octava de arriba
+  expect(padTarget(4, 0, SCALES.mayor, 50)).toBe(55);
+});

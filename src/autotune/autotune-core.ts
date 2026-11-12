@@ -1,4 +1,4 @@
-import { hzToMidi, nearestInScale, padNote, SCALES, type Scale } from './scales';
+import { hzToMidi, nearestInScale, padTarget, SCALES, type Scale } from './scales';
 import { detectPitch } from './yin';
 
 /**
@@ -22,12 +22,15 @@ export class AutotuneCore {
   private forced: number | null = null;
   private retuneCoef = 1;
 
-  // Análisis
-  private readonly anaSize = 1024;
+  // Análisis (a ~12 kHz: suficiente para voces de hasta 1 kHz y barato para el teléfono)
+  readonly analysisRate: number;
+  private readonly decim: number;
+  private decimSum = 0;
+  private nullHops = 0;
+  private readonly anaSize = 512;
   private ana: Float32Array;
   private anaLin: Float32Array;
   private anaPos = 0;
-  private decimHold = 0;
   private decimPhase = 0;
   private hopCount = 0;
   private readonly hop = 512;
@@ -49,6 +52,8 @@ export class AutotuneCore {
   private fadePos = -1; // -1 = sin fundido
 
   constructor(private sampleRate: number) {
+    this.decim = Math.max(1, Math.round(sampleRate / 12000));
+    this.analysisRate = sampleRate / this.decim;
     const scale = sampleRate / 48000;
     this.win = Math.round(1024 * scale);
     this.fadeLen = Math.round(256 * scale);
@@ -63,6 +68,11 @@ export class AutotuneCore {
     this.ana = new Float32Array(this.anaSize);
     this.anaLin = new Float32Array(this.anaSize);
     this.scratch = new Float32Array(this.anaSize);
+  }
+
+  /** Corrección actual en semitonos. */
+  get currentShift(): number {
+    return this.shift;
   }
 
   setEnabled(on: boolean): void {
@@ -106,31 +116,32 @@ export class AutotuneCore {
   }
 
   private analyze(x: number): void {
-    // Decima ×2 promediando pares.
-    if (this.decimPhase === 0) {
-      this.decimHold = x;
-      this.decimPhase = 1;
-    } else {
-      this.ana[this.anaPos] = 0.5 * (this.decimHold + x);
+    // Decima promediando grupos de `decim` muestras.
+    this.decimSum += x;
+    if (++this.decimPhase >= this.decim) {
+      this.ana[this.anaPos] = this.decimSum / this.decim;
       this.anaPos = (this.anaPos + 1) % this.anaSize;
+      this.decimSum = 0;
       this.decimPhase = 0;
     }
     if (++this.hopCount < this.hop) return;
     this.hopCount = 0;
 
     for (let i = 0; i < this.anaSize; i++) this.anaLin[i] = this.ana[(this.anaPos + i) % this.anaSize];
-    const hz = detectPitch(this.anaLin, this.sampleRate / 2, 70, 1000, 0.15, this.scratch);
+    const hz = detectPitch(this.anaLin, this.analysisRate, 70, 1000, 0.15, this.scratch);
     if (hz === null) {
       this.detectedMidi = null;
       this.periodSamples = 0;
-      this.targetShift = 0;
+      // Mantiene la corrección unos 30 ms (huecos cortos de detección) y luego vuelve a 0.
+      if (++this.nullHops > 3) this.targetShift = 0;
       return;
     }
+    this.nullHops = 0;
     const m = hzToMidi(hz);
     this.detectedMidi = m;
     this.periodSamples = this.sampleRate / hz;
     const target =
-      this.forced !== null ? padNote(this.forced, this.tonic, this.scale, m) : nearestInScale(m, this.tonic, this.scale);
+      this.forced !== null ? padTarget(this.forced, this.tonic, this.scale, m) : nearestInScale(m, this.tonic, this.scale);
     this.targetShift = Math.max(-12, Math.min(12, target - m));
   }
 

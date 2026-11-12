@@ -84,8 +84,9 @@ pantalla). Los 8 pads son los grados 1 a 8 de la escala elegida, a partir
 de la tónica hacia arriba (si la escala tiene menos de 8 notas, continúa
 en la octava siguiente). Mientras se mantiene un pad, el autotune lleva la
 voz a esa nota; al soltarlo vuelve al modo automático. Si se presionan
-varios, manda el último. La octava se elige sola: la más cercana a la voz
-que está entrando, para evitar saltos enormes.
+varios, manda el último (al soltarlo, vuelve al que sigue presionado). La
+octava se elige sola: la de esa nota más cercana a la voz que está entrando,
+para evitar saltos enormes.
 
 Si los mensajes que manda el LPD8 en modo CC chocan con los de las
 perillas (depende del modelo y su configuración), se usa el interruptor de
@@ -95,16 +96,18 @@ pantalla o se reasigna con "aprender".
 
 | Perilla | Efecto | Izquierda (0) | Derecha (127) |
 |---|---|---|---|
-| 1 | Ardilla / monstruo (velocidad de los loops) | 0.5× (una octava abajo) | 2× (una octava arriba); centro = normal, con zona muerta |
-| 2 | Robot / alien (modulador en anillo, 30–300 Hz) | apagado | máximo |
-| 3 | Eco (delay ~375 ms; más perilla = más volumen y más repeticiones) | apagado | máximo |
-| 4 | Reverb (impulso generado de ~2.5 s) | apagado | máximo |
-| 5 | Filtro | "bajo el agua" (pasa-bajos hasta ~300 Hz) | "teléfono" (pasa-banda ~1–3 kHz); centro = sin filtro |
-| 6 | Lo-fi (reduce bits 16→4 y frecuencia de muestreo) | apagado | máximo |
-| 7 | Autotune: velocidad de corrección | suave (~200 ms) | robot (0 ms) |
+| 1 | Ardilla / monstruo (velocidad de los loops) | 0.25× (dos octavas abajo) | 4× (dos octavas arriba); centro = normal, con zona muerta |
+| 2 | Robot / alien (modulador en anillo 40–200 Hz + resonancia metálica) | apagado | máximo (llega a todo efecto con un tercio de perilla) |
+| 3 | Eco (delay 375 ms; volumen hasta 0.9, realimentación hasta 0.75) | apagado | máximo |
+| 4 | Reverb (impulso generado de 4 s; al subir, baja el sonido directo) | apagado | máximo |
+| 5 | Filtro (con resonancia hacia los extremos) | "bajo el agua" (pasa-bajos hasta 200 Hz) | "teléfono" (1.2–2.4 kHz); centro = sin filtro |
+| 6 | Lo-fi (reduce bits hasta ~3 y la frecuencia de muestreo hasta 1/40) | apagado | máximo |
+| 7 | Autotune: velocidad de corrección (arranca en robot) | suave (~200 ms) | robot (0 ms) |
 | 8 | Volumen general | silencio | máximo |
 
-Todos los cambios de perilla se suavizan (~20 ms) para evitar chasquidos.
+Todos los cambios de perilla se suavizan (~20 ms) para evitar chasquidos. Un limitador a la salida evita que se sature.
+
+*Los rangos se exageraron a pedido del usuario (2026-11-12).*
 
 ### 4.4 Pantalla
 
@@ -129,7 +132,7 @@ Cada pieza hace una cosa y se prueba por separado.
 | `controls` | Lista central de acciones (`loopTap(n)`, `loopHold(n)`, `setKnob(k, v)`, `notePress(i)`…). MIDI y pantalla llaman a las mismas acciones. | — |
 | `midi` | Conecta el LPD8, traduce mensajes a acciones, maneja "aprender" y la conexión/desconexión en caliente. Asignaciones por defecto cubren el LPD8 y el LPD8 MK2 de fábrica. | `controls` |
 | `looper` | 4 loops sincronizados (lógica de estados + reproducción). | Worklet de grabación |
-| `autotune` | Detección de tono (YIN, 70–1000 Hz) y cambio de tono (PSOLA) en un AudioWorklet; elige la nota objetivo según escala o pad. | `scales` |
+| `autotune` | Detección de tono (YIN a ~12 kHz, 70–1000 Hz) y cambio de tono (línea de retardo de dos cabezas con saltos alineados al periodo) en un AudioWorklet; elige la nota objetivo según escala o pad. | `scales` |
 | `scales` | Funciones puras: escalas, nota más cercana, nota del pad, conversión Hz ↔ nota. | — |
 | `effects` | Cadena de efectos y su conexión a las perillas. | Worklet lo-fi |
 | `ui` | Dibuja la pantalla y manda toques a `controls`. | `controls` |

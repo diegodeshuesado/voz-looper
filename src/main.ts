@@ -1,9 +1,10 @@
 import './style.css';
 import { Engine, type MicError } from './audio/engine';
-import { padAction, type Action } from './controls';
+import type { Action } from './controls';
 import { learn, loadMapping, saveMapping, type ControlId } from './midi/mapping';
 import { startMidi } from './midi/midi';
 import { PadGestures } from './midi/pad-gestures';
+import { PadRouter } from './midi/pad-router';
 import { mountUi } from './ui/ui';
 
 const storage = (() => {
@@ -27,24 +28,10 @@ let mapping = loadMapping(storage);
 let engine: Engine | null = null;
 let learnTarget: ControlId | null = null;
 let skipNextControl = false;
-let noteMode = false;
 
 const dispatch = (a: Action) => engine?.handle(a);
-const gestures = new PadGestures((pad, g) => {
-  if (noteMode) {
-    // Modo notas: cada pad es un grado de la escala mientras se mantiene.
-    if (g === 'tap') {
-      ui.setNotePressed(pad, true);
-      dispatch({ type: 'notePress', index: pad });
-    } else if (g === 'release') {
-      ui.setNotePressed(pad, false);
-      dispatch({ type: 'noteRelease', index: pad });
-    }
-    return;
-  }
-  const a = padAction(pad, g);
-  if (a) dispatch(a);
-});
+const router = new PadRouter(dispatch, (pad, on) => ui.setNotePressed(pad, on));
+const gestures = new PadGestures((pad, g) => router.gesture(pad, g));
 
 const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
   async onStart() {
@@ -78,13 +65,7 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
   onKnob: (index, value) => dispatch({ type: 'knob', index, value }),
   onLearnTarget: (c) => (learnTarget = c),
   onScale: (tonic, scale) => dispatch({ type: 'setScale', tonic, scale }),
-  onNoteMode: (on) => {
-    noteMode = on;
-    for (let i = 0; i < 8; i++) {
-      ui.setNotePressed(i, false);
-      dispatch({ type: 'noteRelease', index: i });
-    }
-  },
+  onNoteMode: (on) => router.setNoteMode(on),
   onMicSelect: (id) => {
     // Después de intentarlo, el selector muestra el micrófono que de verdad quedó activo.
     void engine?.setMicDevice(id).then(() => refreshMics());

@@ -58,3 +58,14 @@ export function padNote(i: number, tonic: number, scale: Scale, nearMidi: number
   const base = Math.floor((nearMidi - pc) / 12) * 12 + pc;
   return base + scale[i % scale.length] + 12 * Math.floor(i / scale.length);
 }
+
+/**
+ * Nota objetivo del pad `i` en modo notas: la nota de ese grado más cercana a la voz
+ * (así no brinca de octava cuando la voz tiembla). Los pads que pasan del último grado
+ * de la escala suenan una octava arriba (el pad 8 en una escala de 7 notas es la tónica de arriba).
+ */
+export function padTarget(i: number, tonic: number, scale: Scale, voiceMidi: number): number {
+  const note = tonic + scale[i % scale.length];
+  const nearest = note + 12 * Math.round((voiceMidi - note) / 12);
+  return nearest + 12 * Math.floor(i / scale.length);
+}

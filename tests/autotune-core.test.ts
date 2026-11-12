@@ -55,3 +55,20 @@ test('autotuneLatency coincide con el núcleo', async () => {
   const { autotuneLatency } = await import('../src/autotune/autotune-core');
   for (const sr of [44100, 48000, 96000]) expect(autotuneLatency(sr)).toBe(new AutotuneCore(sr).latencySamples);
 });
+
+test('analiza a ~12 kHz para gastar poco procesador (también a 96 kHz)', () => {
+  expect(new AutotuneCore(48000).analysisRate).toBe(12000);
+  expect(new AutotuneCore(96000).analysisRate).toBe(12000);
+  expect(new AutotuneCore(44100).analysisRate).toBe(11025);
+});
+
+test('un instante sin nota clara no suelta la corrección de golpe', () => {
+  const core = new AutotuneCore(SR);
+  core.setScale(0, SCALES.mayor);
+  core.setRetune(1);
+  proc(core, tone(452, 0.5));
+  const locked = core.currentShift;
+  expect(locked).toBeLessThan(-0.3);
+  proc(core, new Float32Array(1024)); // ~2 análisis sin nota
+  expect(core.currentShift).toBeCloseTo(locked, 2);
+});
