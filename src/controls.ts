@@ -1,3 +1,5 @@
+import type { ScaleName } from './autotune/scales';
+
 /** Lista central de acciones: el LPD8 y la pantalla llaman a las mismas. */
 export type Action =
   | { type: 'loopTap'; track: number }
@@ -6,7 +8,10 @@ export type Action =
   | { type: 'toggleReverse' }
   | { type: 'stutter'; on: boolean }
   | { type: 'toggleAutotune' }
-  | { type: 'knob'; index: number; value: number }; // index 0..7, value 0..1
+  | { type: 'knob'; index: number; value: number } // index 0..7, value 0..1
+  | { type: 'notePress'; index: number } // modo notas: grado 0..7
+  | { type: 'noteRelease'; index: number }
+  | { type: 'setScale'; tonic: number; scale: ScaleName };
 
 export type Dispatch = (a: Action) => void;
 export type Gesture = 'tap' | 'hold' | 'release';

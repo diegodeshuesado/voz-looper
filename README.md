@@ -17,7 +17,7 @@ Diseño: [docs/superpowers/specs/2026-11-08-voz-looper-design.md](docs/superpowe
 7. Pad 8 abre y cierra el micro. Perilla 8 → volumen.
 8. Si algo no responde, abre **Monitor MIDI** y revisa qué aparece. Con **Aprender** puedes reasignar cualquier pad o perilla.
 
-## Cómo probar el paso 2 (efectos)
+## Efectos y autotune
 
 Graba un par de loops y mueve las perillas:
 
@@ -29,8 +29,12 @@ Graba un par de loops y mueve las perillas:
 | 4 | Reverb |
 | 5 | Filtro: izquierda "bajo el agua", derecha "teléfono" (centro = sin filtro) |
 | 6 | Lo-fi |
+| 7 | Autotune: izquierda suave, derecha robot (arranca en robot) |
 | 8 | Volumen |
 
+- Pad 7: **autotune** encendido/apagado (arranca encendido).
+- **Tónica y escala:** elige en qué escala se afina tu voz (por defecto Do mayor). Junto a eso ves la nota que estás cantando.
+- **Modo notas:** los 8 pads se vuelven notas de la escala; mientras mantienes uno, tu voz se va a esa nota. Habla y toca una melodía.
 - Pad 5: **al revés** (enciende y apaga).
 - Pad 6: **stutter** mientras lo mantienes.
 - Abajo puedes elegir qué **micrófono** usar.

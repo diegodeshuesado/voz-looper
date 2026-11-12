@@ -2,6 +2,8 @@ import type { Action } from '../controls';
 import { ardillaRate, echoParams, filterParams, reverbParams, stutterSamples } from '../fx/knobs';
 import { makeImpulse } from '../fx/reverb';
 import fxUrl from '../fx/fx-worklet.ts?worker&url';
+import { autotuneLatency } from '../autotune/autotune-core';
+import autotuneUrl from '../autotune/autotune-worklet.ts?worker&url';
 import type { TrackState } from '../looper/looper-core';
 import looperUrl from '../looper/looper-worklet.ts?worker&url';
 
@@ -12,6 +14,8 @@ export interface EngineEvents {
   onMic(open: boolean): void;
   onReverse(on: boolean): void;
   onStutter(on: boolean): void;
+  onAutotune(on: boolean): void;
+  onDetected(midi: number | null): void;
   onError(kind: MicError): void;
 }
 
@@ -25,6 +29,7 @@ const ECHO_SECONDS = 0.375;
 
 interface Nodes {
   micGate: GainNode;
+  autotune: AudioWorkletNode;
   looper: AudioWorkletNode;
   fx: AudioWorkletNode;
   hp: BiquadFilterNode;
@@ -41,6 +46,8 @@ export class Engine {
   private base: number | null = null;
   private micOpen = false;
   private reverse = false;
+  private autotuneOn = true;
+  private forcedDegree: number | null = null;
   private levelBuf = new Float32Array(1024);
   private source: MediaStreamAudioSourceNode | null = null;
   private stream: MediaStream | null = null;
@@ -59,19 +66,29 @@ export class Engine {
       this.base = e.data.baseLength;
       ev.onStates(this.states);
     };
+    n.autotune.port.onmessage = (e: MessageEvent<{ detected: number | null }>) => ev.onDetected(e.data.detected);
   }
 
   /** Debe llamarse tras un toque del usuario (política de audio del navegador). */
   static async create(ev: EngineEvents): Promise<Engine> {
     const ctx = new AudioContext({ latencyHint: 'interactive' });
     await ctx.resume();
-    await Promise.all([ctx.audioWorklet.addModule(looperUrl), ctx.audioWorklet.addModule(fxUrl)]);
+    await Promise.all([
+      ctx.audioWorklet.addModule(looperUrl),
+      ctx.audioWorklet.addModule(fxUrl),
+      ctx.audioWorklet.addModule(autotuneUrl),
+    ]);
 
     const mono = { channelCount: 1, channelCountMode: 'explicit' as const };
-    const latencySamples = Math.round((ctx.baseLatency + (ctx.outputLatency || 0)) * ctx.sampleRate);
+    // El autotune retrasa la voz un poco (fijo): se compensa al grabar.
+    const latencySamples =
+      Math.round((ctx.baseLatency + (ctx.outputLatency || 0)) * ctx.sampleRate) + autotuneLatency(ctx.sampleRate);
     const looper = new AudioWorkletNode(ctx, 'looper', {
       ...mono, numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
       processorOptions: { latencySamples },
+    });
+    const autotune = new AudioWorkletNode(ctx, 'autotune', {
+      ...mono, numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
     });
     const fx = new AudioWorkletNode(ctx, 'fx', { ...mono, numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
 
@@ -110,8 +127,9 @@ export class Engine {
     limiter.release.value = 0.1;
 
     // micro → looper; (micro + loops) → fx → filtro → eco → reverb → volumen → salida
-    micGate.connect(looper);
-    micGate.connect(fx);
+    micGate.connect(autotune);
+    autotune.connect(looper);
+    autotune.connect(fx);
     looper.connect(fx);
     fx.connect(hp).connect(lp).connect(echoIn);
     echoIn.connect(revIn);
@@ -122,8 +140,9 @@ export class Engine {
     revIn.connect(convolver).connect(revWet).connect(master);
     master.connect(limiter).connect(ctx.destination);
 
-    const engine = new Engine(ctx, { micGate, looper, fx, hp, lp, echoWet, echoFb, revWet, revDry, master }, ev);
+    const engine = new Engine(ctx, { micGate, autotune, looper, fx, hp, lp, echoWet, echoFb, revWet, revDry, master }, ev);
     await engine.connectMic();
+    ev.onAutotune(true);
     return engine;
   }
 
@@ -152,8 +171,24 @@ export class Engine {
       case 'knob':
         this.knob(a.index, a.value, t);
         break;
-      default:
-        break; // autotune: paso 3
+      case 'toggleAutotune':
+        this.autotuneOn = !this.autotuneOn;
+        this.n.autotune.port.postMessage({ type: 'enabled', on: this.autotuneOn });
+        this.ev.onAutotune(this.autotuneOn);
+        break;
+      case 'notePress':
+        this.forcedDegree = a.index;
+        this.n.autotune.port.postMessage({ type: 'force', degree: a.index });
+        break;
+      case 'noteRelease':
+        if (this.forcedDegree === a.index) {
+          this.forcedDegree = null;
+          this.n.autotune.port.postMessage({ type: 'force', degree: null });
+        }
+        break;
+      case 'setScale':
+        this.n.autotune.port.postMessage({ type: 'scale', tonic: a.tonic, scale: a.scale });
+        break;
     }
   }
 
@@ -188,6 +223,9 @@ export class Engine {
       }
       case 5:
         n.fx.port.postMessage({ type: 'lofi', value: v });
+        break;
+      case 6:
+        n.autotune.port.postMessage({ type: 'retune', value: v });
         break;
       case 7:
         n.master.gain.setTargetAtTime(v * v, t, SMOOTH);

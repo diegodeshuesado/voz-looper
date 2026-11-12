@@ -27,9 +27,21 @@ let mapping = loadMapping(storage);
 let engine: Engine | null = null;
 let learnTarget: ControlId | null = null;
 let skipNextControl = false;
+let noteMode = false;
 
 const dispatch = (a: Action) => engine?.handle(a);
 const gestures = new PadGestures((pad, g) => {
+  if (noteMode) {
+    // Modo notas: cada pad es un grado de la escala mientras se mantiene.
+    if (g === 'tap') {
+      ui.setNotePressed(pad, true);
+      dispatch({ type: 'notePress', index: pad });
+    } else if (g === 'release') {
+      ui.setNotePressed(pad, false);
+      dispatch({ type: 'noteRelease', index: pad });
+    }
+    return;
+  }
   const a = padAction(pad, g);
   if (a) dispatch(a);
 });
@@ -42,6 +54,8 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
         onMic: (open) => ui.setMic(open),
         onReverse: (on) => ui.setPadOn(4, on),
         onStutter: (on) => ui.setPadOn(5, on),
+        onAutotune: (on) => ui.setPadOn(6, on),
+        onDetected: (m) => ui.setDetected(m),
         onError: (kind) => ui.notice(MIC_ERRORS[kind]),
       });
     } catch (e) {
@@ -63,6 +77,14 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
   onPad: (pad, down) => (down ? gestures.down(pad) : gestures.up(pad)),
   onKnob: (index, value) => dispatch({ type: 'knob', index, value }),
   onLearnTarget: (c) => (learnTarget = c),
+  onScale: (tonic, scale) => dispatch({ type: 'setScale', tonic, scale }),
+  onNoteMode: (on) => {
+    noteMode = on;
+    for (let i = 0; i < 8; i++) {
+      ui.setNotePressed(i, false);
+      dispatch({ type: 'noteRelease', index: i });
+    }
+  },
   onMicSelect: (id) => {
     // Después de intentarlo, el selector muestra el micrófono que de verdad quedó activo.
     void engine?.setMicDevice(id).then(() => refreshMics());

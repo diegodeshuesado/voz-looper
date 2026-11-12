@@ -17,6 +17,7 @@ function startServer() {
 }
 
 async function holdPad(page, n, ms) {
+  await page.locator(`[data-pad="${n}"]`).scrollIntoViewIfNeeded();
   const box = await page.locator(`[data-pad="${n}"]`).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -69,6 +70,7 @@ async function withMic() {
   await expectState(page, 5, 'on');
   await holdPad(page, 5, 50);
   await expectState(page, 5, 'off');
+  await page.locator('[data-pad="6"]').scrollIntoViewIfNeeded();
   const box6 = await page.locator('[data-pad="6"]').boundingBox();
   await page.mouse.move(box6.x + 20, box6.y + 20);
   await page.mouse.down();
@@ -77,7 +79,21 @@ async function withMic() {
   await expectState(page, 6, 'off');
   for (const k of [1, 2, 3, 4, 5, 6]) await page.locator(`[data-knob="${k}"]`).fill('127');
   await page.locator('[data-mic-select]').waitFor();
-  if (await page.locator('.knob.soon').count() !== 1) throw new Error('solo la perilla 7 debe decir pronto');
+  if (await page.locator('.soon').count() !== 0) throw new Error('ya no debe haber controles "pronto"');
+  // Pasos 3 y 4: autotune, escala y modo notas.
+  await expectState(page, 7, 'on');
+  await holdPad(page, 7, 50);
+  await expectState(page, 7, 'off');
+  await holdPad(page, 7, 50);
+  await expectState(page, 7, 'on');
+  await page.locator('[data-tonic]').selectOption('9');
+  await page.locator('[data-scale]').selectOption('menor');
+  await page.getByRole('button', { name: 'Modo notas' }).click();
+  const label = await page.locator('[data-pad="1"]').textContent();
+  if (!label.includes('La')) throw new Error(`en modo notas el pad 1 debe decir La, dice: ${label}`);
+  await holdPad(page, 1, 50); // en modo notas no debe grabar
+  await page.getByRole('button', { name: 'Modo notas' }).click();
+  await expectState(page, 1, 'empty');
   if (errors.length) throw new Error(`errores en la página: ${errors.join(' | ')}`);
   await browser.close();
   console.log('ok: con micrófono');

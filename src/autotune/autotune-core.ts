@@ -6,6 +6,12 @@ import { detectPitch } from './yin';
  * línea de retardo de dos cabezas. Solo suena una cabeza a la vez; al llegar al borde se
  * hace un fundido corto a la otra, saltando un número entero de periodos para que no se note.
  */
+/** Retraso fijo del autotune (igual encendido o apagado). */
+export function autotuneLatency(sampleRate: number): number {
+  const scale = sampleRate / 48000;
+  return Math.round(Math.round(256 * scale) + 4 + Math.round(1024 * scale) / 2);
+}
+
 export class AutotuneCore {
   readonly latencySamples: number;
   detectedMidi: number | null = null;

@@ -50,3 +50,8 @@ describe('AutotuneCore', () => {
     expect(core.detectedMidi).toBeNull();
   });
 });
+
+test('autotuneLatency coincide con el núcleo', async () => {
+  const { autotuneLatency } = await import('../src/autotune/autotune-core');
+  for (const sr of [44100, 48000, 96000]) expect(autotuneLatency(sr)).toBe(new AutotuneCore(sr).latencySamples);
+});
