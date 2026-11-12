@@ -44,6 +44,7 @@ export class Engine {
   private source: MediaStreamAudioSourceNode | null = null;
   private stream: MediaStream | null = null;
   private analyser: AnalyserNode;
+  private micRequest = 0;
 
   private constructor(
     private ctx: AudioContext,
@@ -219,6 +220,7 @@ export class Engine {
       this.ev.onError('insecure');
       return;
     }
+    const request = ++this.micRequest;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -228,6 +230,11 @@ export class Engine {
           ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
         },
       });
+      if (request !== this.micRequest) {
+        // Llegó tarde: ya se pidió otro micrófono después.
+        stream.getTracks().forEach((tr) => tr.stop());
+        return;
+      }
       const source = this.ctx.createMediaStreamSource(stream);
       source.connect(this.n.micGate);
       source.connect(this.analyser);
@@ -236,8 +243,15 @@ export class Engine {
       this.source = source;
       this.stream = stream;
     } catch (e) {
+      if (request !== this.micRequest) return;
       const name = (e as DOMException)?.name;
-      this.ev.onError(name === 'NotFoundError' ? 'mic-missing' : name === 'NotReadableError' ? 'mic-busy' : 'mic-denied');
+      this.ev.onError(
+        name === 'NotFoundError' || name === 'OverconstrainedError'
+          ? 'mic-missing'
+          : name === 'NotReadableError'
+            ? 'mic-busy'
+            : 'mic-denied',
+      );
     }
   }
 

@@ -116,12 +116,44 @@ async function micMissing() {
   console.log('ok: sin micrófono');
 }
 
+async function micSwitchFails() {
+  const browser = await launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+  const page = await browser.newPage();
+  page.setDefaultTimeout(5000);
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices;
+    md.enumerateDevices = async () => [
+      { kind: 'audioinput', deviceId: 'uno', label: 'Micro uno' },
+      { kind: 'audioinput', deviceId: 'dos', label: 'Micro dos' },
+    ];
+    md.getUserMedia = async (c) => {
+      if (c.audio.deviceId) throw new DOMException('no existe', 'OverconstrainedError');
+      const ctx = new AudioContext();
+      const d = ctx.createMediaStreamDestination();
+      const track = d.stream.getAudioTracks()[0];
+      track.getSettings = () => ({ deviceId: 'uno' });
+      return d.stream;
+    };
+  });
+  await page.goto(URL);
+  await page.getByRole('button', { name: 'Empezar' }).click();
+  const sel = page.locator('[data-mic-select]');
+  await page.waitForFunction(() => document.querySelector('[data-mic-select]').options.length === 2);
+  await sel.selectOption('dos');
+  await page.locator('[data-notice]').filter({ hasText: 'No se encontró' }).waitFor({ timeout: 3000 });
+  await page.waitForFunction(() => document.querySelector('[data-mic-select]').value === 'uno', null, { timeout: 3000 })
+    .catch(() => { throw new Error('el selector debe regresar al micro que sí funciona'); });
+  await browser.close();
+  console.log('ok: cambio de micro fallido');
+}
+
 (async () => {
   const server = await startServer();
   try {
     await withMic();
     await micDenied();
     await micMissing();
+    await micSwitchFails();
   } catch (e) {
     console.error('FALLO:', e.message);
     process.exitCode = 1;

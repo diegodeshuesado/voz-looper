@@ -120,7 +120,8 @@ describe('LooperCore', () => {
     run(core, [1, 2, 3, 4]);
     core.tap(0); // pos 4, idx 0
     core.setReverse(true);
-    expect(run(core, fill(4, 0))).toEqual([4, 3, 2, 1]);
+    // Sigue desde donde iba, ahora hacia atrás (sin saltos): 0, 3, 2, 1.
+    expect(run(core, fill(4, 0))).toEqual([1, 4, 3, 2]);
   });
 
   test('velocidad 2 recorre el loop al doble', () => {
@@ -152,5 +153,66 @@ describe('LooperCore', () => {
       const out = run(core, fill(1000, 0));
       expect(out.every((v) => Number.isFinite(v) && Math.abs(v) <= 1)).toBe(true);
     }
+  });
+
+  test('al revés mantiene sincronizados los loops encimados', () => {
+    const core = new LooperCore(SR, { smoothing: false });
+    core.tap(0);
+    run(core, [0, 0, 0, 0, 0, 0.5, 0, 0]); // impulso en el índice 5
+    core.tap(0); // pos 8
+    run(core, [0, 0, 0]); // pos 11
+    core.tap(1);
+    run(core, [0, 0, 0.25, 0, 0, 0, 0, 0]); // el 0.25 cae junto al 0.5 (pos 13)
+    core.tap(1);
+    core.setReverse(true);
+    const out = run(core, fill(16, 0)).filter((v) => v !== 0);
+    expect(out).toEqual([0.75, 0.75]);
+  });
+
+  test('grabar con velocidad 2 queda sincronizado al volver a velocidad normal', () => {
+    const core = new LooperCore(SR, { smoothing: false });
+    const base = fill(16, 0);
+    base[8] = 0.5;
+    core.tap(0);
+    run(core, base);
+    core.tap(0); // pos 16
+    core.setRate(2);
+    core.tap(1);
+    const sung = fill(8, 0);
+    sung[4] = 0.25; // se oye el impulso base 4 muestras reales después (pos virtual 24)
+    run(core, sung); // 8 muestras reales = 16 virtuales
+    core.tap(1);
+    core.setRate(1);
+    // A doble velocidad la grabación se estira (como cinta): lo que importa es que el golpe
+    // cantado caiga encima del golpe del loop base.
+    const out = run(core, fill(32, 0));
+    expect(Math.max(...out)).toBeCloseTo(0.75);
+  });
+
+  test('tras volver al centro la velocidad queda exactamente en 1 y sin interpolar', () => {
+    const core = new LooperCore(SR);
+    core.tap(0);
+    run(core, [0.1, 0.2, 0.3, 0.4]);
+    core.tap(0);
+    core.setRate(1.37);
+    run(core, fill(50, 0));
+    core.setRate(1);
+    run(core, fill(500, 0));
+    const out = run(core, fill(4, 0));
+    expect(out.every((v) => [0.1, 0.2, 0.3, 0.4].some((x) => Math.abs(x - v) < 1e-7))).toBe(true);
+  });
+
+  test('grabar al revés queda sincronizado al volver hacia adelante', () => {
+    const core = new LooperCore(SR, { smoothing: false });
+    core.tap(0);
+    run(core, [0, 0, 0, 0, 0, 0.5, 0, 0]);
+    core.tap(0); // pos 8 ≡ 0
+    core.setReverse(true);
+    core.tap(1); // pos baja: 8, 7, 6, 5 ...
+    run(core, [0, 0, 0, 0.25, 0, 0, 0, 0]); // la 4ª muestra real es pos 5: el golpe del loop base
+    core.tap(1);
+    core.setReverse(false);
+    const out = run(core, fill(16, 0)).filter((v) => v !== 0);
+    expect(out).toEqual([0.75, 0.75]);
   });
 });

@@ -21,6 +21,8 @@ const MIC_ERRORS: Record<MicError, string> = {
   insecure: 'El micrófono solo funciona en páginas seguras (https).',
 };
 
+let refreshMics: () => Promise<void> = async () => {};
+
 let mapping = loadMapping(storage);
 let engine: Engine | null = null;
 let learnTarget: ControlId | null = null;
@@ -46,7 +48,7 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
       ui.notice(`No se pudo iniciar el audio: ${(e as Error).message}`);
       return;
     }
-    const refreshMics = async () => {
+    refreshMics = async () => {
       if (!engine) return;
       ui.setMics(await engine.listMics(), engine.currentMicId());
     };
@@ -61,7 +63,10 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
   onPad: (pad, down) => (down ? gestures.down(pad) : gestures.up(pad)),
   onKnob: (index, value) => dispatch({ type: 'knob', index, value }),
   onLearnTarget: (c) => (learnTarget = c),
-  onMicSelect: (id) => void engine?.setMicDevice(id),
+  onMicSelect: (id) => {
+    // Después de intentarlo, el selector muestra el micrófono que de verdad quedó activo.
+    void engine?.setMicDevice(id).then(() => refreshMics());
+  },
 });
 
 void startMidi(() => mapping, {

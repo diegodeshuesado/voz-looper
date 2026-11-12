@@ -158,8 +158,9 @@ export function mountUi(root: HTMLElement, opts: UiOptions): UiHandle {
       padEl(pad).dataset.state = on ? 'on' : 'off';
     },
     setMics(list, current) {
+      const items = list.length ? list : [{ id: '', label: 'Predeterminado' }];
       micSelect.replaceChildren(
-        ...list.map((m) => {
+        ...items.map((m) => {
           const o = document.createElement('option');
           o.value = m.id;
           o.textContent = m.label;

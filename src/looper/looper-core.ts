@@ -11,8 +11,10 @@ export interface LooperOptions {
 interface Track {
   state: TrackState;
   buf: Float32Array;
-  start: number; // posición global donde empezó a grabar
-  recorded: number; // muestras grabadas
+  start: number; // posición virtual donde empezó a grabar
+  recorded: number; // índice más alto escrito + 1
+  recDir: 1 | -1; // dirección en que se grabó (al revés se voltea al cerrar)
+  last: number; // última muestra escrita (para rellenar huecos)
   length: number; // duración del loop en muestras
   anchor: number; // posición global que corresponde al índice 0
 }
@@ -43,6 +45,8 @@ export class LooperCore {
       buf: new Float32Array(this.max),
       start: 0,
       recorded: 0,
+      recDir: 1 as 1 | -1,
+      last: 0,
       length: 0,
       anchor: 0,
     }));
@@ -73,6 +77,8 @@ export class LooperCore {
         t.state = 'recording';
         t.start = this.pos;
         t.recorded = 0;
+        t.recDir = this.reverse ? -1 : 1;
+        t.last = 0;
         break;
       }
       case 'recording':
@@ -105,17 +111,40 @@ export class LooperCore {
       for (let k = 0; k < this.tracksData.length; k++) {
         const t = this.tracksData[k];
         if (t.state === 'playing') {
-          let idx = mod(p - t.anchor, t.length);
-          if (this.reverse) idx = mod(t.length - 1 - idx, t.length);
-          output[i] += readInterpolated(t.buf, t.length, idx);
+          output[i] += readInterpolated(t.buf, t.length, mod(p - t.anchor, t.length));
         } else if (t.state === 'recording') {
-          t.buf[t.recorded++] = input[i] ?? 0;
+          this.write(t, Math.floor(Math.abs(p - t.start)), input[i] ?? 0);
           if (t.recorded >= this.recordLimit()) this.close(k);
         }
       }
-      this.rate += (this.targetRate - this.rate) * this.rateCoef;
-      this.pos += this.rate;
+      this.advance();
     }
+  }
+
+  /** Graba como cinta: una muestra por posición virtual, rellenando huecos si va rápido. */
+  private write(t: Track, idx: number, x: number): void {
+    const limit = this.recordLimit();
+    if (idx >= limit) idx = limit - 1;
+    if (idx >= t.recorded) {
+      const from = t.recorded;
+      for (let j = from; j < idx; j++) {
+        t.buf[j] = t.last + ((x - t.last) * (j - from + 1)) / (idx - from + 1);
+      }
+      t.recorded = idx + 1;
+    }
+    t.buf[idx] = x;
+    t.last = x;
+  }
+
+  private advance(): void {
+    if (this.rate !== this.targetRate) {
+      this.rate += (this.targetRate - this.rate) * this.rateCoef;
+      if (Math.abs(this.targetRate - this.rate) < 1e-4) {
+        this.rate = this.targetRate;
+        if (this.rate === 1) this.pos = Math.round(this.pos); // vuelve a leer muestras exactas
+      }
+    }
+    this.pos += this.reverse ? -this.rate : this.rate;
   }
 
   private recordLimit(): number {
@@ -124,7 +153,10 @@ export class LooperCore {
 
   private close(track: number): void {
     const t = this.tracksData[track];
-    const n = t.recorded;
+    let n = Math.min(this.recordLimit(), Math.max(t.recorded, Math.floor(Math.abs(this.pos - t.start))));
+    if (t.recorded === 0) n = 0;
+    t.buf.fill(t.last, t.recorded, n);
+    t.recorded = n;
     if (n === 0) {
       t.state = 'empty';
       if (this.tracksData.every((o) => o.state === 'empty')) this.base = null;
@@ -138,7 +170,14 @@ export class LooperCore {
       t.length = Math.min(Math.ceil(n / this.base) * this.base, this.recordLimit());
       t.buf.fill(0, n, t.length);
     }
-    t.anchor = t.start - this.latency;
+    // Lo grabado al revés se voltea para que el índice 0 sea la posición virtual más baja.
+    let first = t.start;
+    if (t.recDir === -1) {
+      t.buf.subarray(0, n).reverse();
+      first = t.start - (n - 1);
+    }
+    const dir = this.reverse ? -1 : 1;
+    t.anchor = first - this.latency * this.rate * dir;
     t.state = 'playing';
     this.sync();
   }
