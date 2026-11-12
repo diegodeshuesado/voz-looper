@@ -8,11 +8,14 @@ declare class AudioWorkletProcessor {
 }
 declare function registerProcessor(name: string, ctor: unknown): void;
 
-type Msg = { type: 'tap' | 'clear'; track: number };
+type Msg =
+  | { type: 'tap' | 'clear'; track: number }
+  | { type: 'rate'; value: number }
+  | { type: 'reverse'; on: boolean };
 
 class LooperProcessor extends AudioWorkletProcessor {
   private core: LooperCore;
-  private last = '';
+  private last: TrackState[] = [];
   private silence = new Float32Array(128);
 
   constructor(options: { processorOptions?: { latencySamples?: number } }) {
@@ -21,8 +24,11 @@ class LooperProcessor extends AudioWorkletProcessor {
       latencySamples: options.processorOptions?.latencySamples ?? 0,
     });
     this.port.onmessage = (ev: MessageEvent<Msg>) => {
-      if (ev.data.type === 'tap') this.core.tap(ev.data.track);
-      else this.core.clear(ev.data.track);
+      const m = ev.data;
+      if (m.type === 'tap') this.core.tap(m.track);
+      else if (m.type === 'clear') this.core.clear(m.track);
+      else if (m.type === 'rate') this.core.setRate(m.value);
+      else if (m.type === 'reverse') this.core.setReverse(m.on);
       this.report();
     };
     this.report();
@@ -41,10 +47,10 @@ class LooperProcessor extends AudioWorkletProcessor {
   }
 
   private report(): void {
-    const key = this.core.states.join(',');
-    if (key === this.last) return;
-    this.last = key;
-    this.port.postMessage({ states: [...this.core.states] as TrackState[] });
+    const s = this.core.states;
+    if (s.length === this.last.length && s.every((v, i) => v === this.last[i])) return;
+    this.last = [...s];
+    this.port.postMessage({ states: this.last, baseLength: this.core.baseLength });
   }
 }
 

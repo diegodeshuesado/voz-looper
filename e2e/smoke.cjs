@@ -64,6 +64,20 @@ async function withMic() {
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await holdPad(page, 1, 1200);
   await expectState(page, 1, 'empty');
+  // Paso 2: al revés alterna, stutter mientras se mantiene, perillas y selector de micro.
+  await holdPad(page, 5, 50);
+  await expectState(page, 5, 'on');
+  await holdPad(page, 5, 50);
+  await expectState(page, 5, 'off');
+  const box6 = await page.locator('[data-pad="6"]').boundingBox();
+  await page.mouse.move(box6.x + 20, box6.y + 20);
+  await page.mouse.down();
+  await expectState(page, 6, 'on');
+  await page.mouse.up();
+  await expectState(page, 6, 'off');
+  for (const k of [1, 2, 3, 4, 5, 6]) await page.locator(`[data-knob="${k}"]`).fill('127');
+  await page.locator('[data-mic-select]').waitFor();
+  if (await page.locator('.knob.soon').count() !== 1) throw new Error('solo la perilla 7 debe decir pronto');
   if (errors.length) throw new Error(`errores en la página: ${errors.join(' | ')}`);
   await browser.close();
   console.log('ok: con micrófono');

@@ -38,12 +38,20 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
       engine = await Engine.create({
         onStates: (s) => ui.setStates(s),
         onMic: (open) => ui.setMic(open),
+        onReverse: (on) => ui.setPadOn(4, on),
+        onStutter: (on) => ui.setPadOn(5, on),
         onError: (kind) => ui.notice(MIC_ERRORS[kind]),
       });
     } catch (e) {
       ui.notice(`No se pudo iniciar el audio: ${(e as Error).message}`);
       return;
     }
+    const refreshMics = async () => {
+      if (!engine) return;
+      ui.setMics(await engine.listMics(), engine.currentMicId());
+    };
+    void refreshMics();
+    navigator.mediaDevices?.addEventListener?.('devicechange', () => void refreshMics());
     const meter = () => {
       ui.setLevel(engine?.inputLevel() ?? 0);
       requestAnimationFrame(meter);
@@ -53,6 +61,7 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
   onPad: (pad, down) => (down ? gestures.down(pad) : gestures.up(pad)),
   onKnob: (index, value) => dispatch({ type: 'knob', index, value }),
   onLearnTarget: (c) => (learnTarget = c),
+  onMicSelect: (id) => void engine?.setMicDevice(id),
 });
 
 void startMidi(() => mapping, {

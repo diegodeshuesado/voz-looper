@@ -22,7 +22,7 @@ export function filterParams(v: number): { hp: number; lp: number } {
 
 /** Eco: más perilla = más volumen y más repeticiones. */
 export function echoParams(v: number): { wet: number; feedback: number } {
-  return { wet: v, feedback: 0.6 * v };
+  return { wet: 0.5 * v, feedback: 0.6 * v };
 }
 
 /** Tamaño del fragmento del stutter: 1/16 de la duración base, o 125 ms sin loops. */

@@ -19,7 +19,7 @@ test('filtro: centro sin filtro, izquierda bajo el agua, derecha teléfono', () 
 
 test('eco', () => {
   expect(echoParams(0)).toEqual({ wet: 0, feedback: 0 });
-  expect(echoParams(1)).toEqual({ wet: 1, feedback: 0.6 });
+  expect(echoParams(1)).toEqual({ wet: 0.5, feedback: 0.6 });
 });
 
 test('stutter: 1/16 de la base o 125 ms', () => {

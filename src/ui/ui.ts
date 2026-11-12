@@ -5,6 +5,8 @@ import type { MidiStatus } from '../midi/midi';
 export interface UiHandle {
   setStates(s: TrackState[]): void;
   setMic(open: boolean): void;
+  setPadOn(pad: number, on: boolean): void; // pad 0..7
+  setMics(list: { id: string; label: string }[], current?: string): void;
   setMidiStatus(s: MidiStatus, name?: string): void;
   logMidi(text: string): void;
   setLevel(v: number): void;
@@ -18,12 +20,13 @@ export interface UiOptions {
   onPad(pad: number, down: boolean): void; // pad 0..7
   onKnob(index: number, value: number): void; // index 0..7, value 0..1
   onLearnTarget(control: ControlId | null): void;
+  onMicSelect(deviceId: string): void;
 }
 
 const PAD_LABELS = ['Loop 1', 'Loop 2', 'Loop 3', 'Loop 4', 'Al revés', 'Stutter', 'Autotune', 'Micro'];
 const KNOB_LABELS = ['Ardilla / monstruo', 'Robot', 'Eco', 'Reverb', 'Filtro', 'Lo-fi', 'Autotune', 'Volumen'];
-const SOON = new Set([0, 1, 2, 3, 4, 5, 6]); // perillas que llegan en pasos siguientes
-const SOON_PADS = new Set([4, 5, 6]);
+const SOON = new Set([6]); // autotune: paso 3
+const SOON_PADS = new Set([6]);
 
 const MIDI_TEXT: Record<MidiStatus, (name?: string) => string> = {
   connected: (n) => `${n ?? 'LPD8'} conectado`,
@@ -64,6 +67,9 @@ export function mountUi(root: HTMLElement, opts: UiOptions): UiHandle {
           </label>`,
         ).join('')}
       </div>
+      <label class="mic-select">Micrófono
+        <select data-mic-select><option value="">Predeterminado</option></select>
+      </label>
       <div class="tools">
         <button type="button" class="learn" data-learn>${LEARN_IDLE}</button>
         <span class="learn-help" data-learn-help></span>
@@ -84,6 +90,10 @@ export function mountUi(root: HTMLElement, opts: UiOptions): UiHandle {
   const pads = [...root.querySelectorAll<HTMLButtonElement>('[data-pad]')];
   const padEl = (i: number) => pads.find((p) => p.dataset.pad === String(i + 1))!;
   const knobs = [...root.querySelectorAll<HTMLInputElement>('[data-knob]')];
+  const micSelect = $<HTMLSelectElement>('[data-mic-select]');
+  micSelect.addEventListener('change', () => {
+    if (micSelect.value) opts.onMicSelect(micSelect.value);
+  });
   const lines: string[] = [];
 
   let learning: 'off' | 'pick' | 'wait' = 'off';
@@ -142,7 +152,21 @@ export function mountUi(root: HTMLElement, opts: UiOptions): UiHandle {
       states.forEach((s, i) => (padEl(i).dataset.state = s));
     },
     setMic(open) {
-      padEl(7).dataset.state = open ? 'on' : 'off';
+      this.setPadOn(7, open);
+    },
+    setPadOn(pad, on) {
+      padEl(pad).dataset.state = on ? 'on' : 'off';
+    },
+    setMics(list, current) {
+      micSelect.replaceChildren(
+        ...list.map((m) => {
+          const o = document.createElement('option');
+          o.value = m.id;
+          o.textContent = m.label;
+          o.selected = m.id === current;
+          return o;
+        }),
+      );
     },
     setMidiStatus(s, name) {
       midi.dataset.status = s;

@@ -17,6 +17,24 @@ Diseño: [docs/superpowers/specs/2026-11-08-voz-looper-design.md](docs/superpowe
 7. Pad 8 abre y cierra el micro. Perilla 8 → volumen.
 8. Si algo no responde, abre **Monitor MIDI** y revisa qué aparece. Con **Aprender** puedes reasignar cualquier pad o perilla.
 
+## Cómo probar el paso 2 (efectos)
+
+Graba un par de loops y mueve las perillas:
+
+| Perilla | Efecto |
+|---|---|
+| 1 | Ardilla / monstruo: velocidad de los loops (centro = normal) |
+| 2 | Robot |
+| 3 | Eco |
+| 4 | Reverb |
+| 5 | Filtro: izquierda "bajo el agua", derecha "teléfono" (centro = sin filtro) |
+| 6 | Lo-fi |
+| 8 | Volumen |
+
+- Pad 5: **al revés** (enciende y apaga).
+- Pad 6: **stutter** mientras lo mantienes.
+- Abajo puedes elegir qué **micrófono** usar.
+
 Para mandar el sonido al Roland P-6: salida de audífonos de la computadora → entrada del P-6.
 
 ## Desarrollo
