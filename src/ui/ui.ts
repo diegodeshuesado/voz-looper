@@ -117,6 +117,7 @@ export function mountUi(root: HTMLElement, opts: UiOptions): UiHandle {
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       if (learning === 'pick') return pickTarget(`pad${i + 1}` as ControlId);
+      if (learning !== 'off') return; // esperando al LPD8: los pads de pantalla no actúan
       el.setPointerCapture?.(e.pointerId);
       opts.onPad(i, true);
     });

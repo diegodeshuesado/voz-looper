@@ -56,6 +56,12 @@ async function withMic() {
   await holdPad(page, 1, 50);
   await expectState(page, 1, 'playing');
   await expectState(page, 8, 'on'); // grabar abrió el micro
+  // En "Aprender", tocar pads en pantalla no debe silenciar ni borrar loops.
+  await page.getByRole('button', { name: 'Aprender' }).click();
+  await holdPad(page, 2, 50); // elige pad2 como objetivo
+  await holdPad(page, 1, 1200);
+  await expectState(page, 1, 'playing');
+  await page.getByRole('button', { name: 'Cancelar' }).click();
   await holdPad(page, 1, 1200);
   await expectState(page, 1, 'empty');
   if (errors.length) throw new Error(`errores en la página: ${errors.join(' | ')}`);
@@ -82,11 +88,26 @@ async function micDenied() {
 let browsers = [];
 const launch = async (opts) => { const b = await chromium.launch(opts); browsers.push(b); return b; };
 
+async function micMissing() {
+  const browser = await launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+  const page = await browser.newPage();
+  page.setDefaultTimeout(5000);
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('no hay', 'NotFoundError'));
+  });
+  await page.goto(URL);
+  await page.getByRole('button', { name: 'Empezar' }).click();
+  await page.locator('[data-notice]').filter({ hasText: 'No se encontró ningún micrófono' }).waitFor({ timeout: 3000 });
+  await browser.close();
+  console.log('ok: sin micrófono');
+}
+
 (async () => {
   const server = await startServer();
   try {
     await withMic();
     await micDenied();
+    await micMissing();
   } catch (e) {
     console.error('FALLO:', e.message);
     process.exitCode = 1;

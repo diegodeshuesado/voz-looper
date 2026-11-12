@@ -5,8 +5,10 @@ import looperUrl from '../looper/looper-worklet.ts?worker&url';
 export interface EngineEvents {
   onStates(states: TrackState[]): void;
   onMic(open: boolean): void;
-  onError(kind: 'mic-denied' | 'insecure'): void;
+  onError(kind: MicError): void;
 }
+
+export type MicError = 'mic-denied' | 'mic-missing' | 'mic-busy' | 'insecure';
 
 const SMOOTH = 0.005; // ~20 ms
 
@@ -67,8 +69,9 @@ export class Engine {
         analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
         source.connect(analyser);
-      } catch {
-        ev.onError('mic-denied');
+      } catch (e) {
+        const name = (e as DOMException)?.name;
+        ev.onError(name === 'NotFoundError' ? 'mic-missing' : name === 'NotReadableError' ? 'mic-busy' : 'mic-denied');
       }
     }
     return new Engine(ctx, looper, micGate, master, analyser, ev);

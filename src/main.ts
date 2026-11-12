@@ -1,5 +1,5 @@
 import './style.css';
-import { Engine } from './audio/engine';
+import { Engine, type MicError } from './audio/engine';
 import { padAction, type Action } from './controls';
 import { learn, loadMapping, saveMapping, type ControlId } from './midi/mapping';
 import { startMidi } from './midi/midi';
@@ -13,6 +13,13 @@ const storage = (() => {
     return null;
   }
 })();
+
+const MIC_ERRORS: Record<MicError, string> = {
+  'mic-denied': 'No hay permiso para el micrófono. Permítelo en el candado de la barra de direcciones y recarga la página.',
+  'mic-missing': 'No se encontró ningún micrófono. Conecta uno y recarga la página.',
+  'mic-busy': 'El micrófono está ocupado por otro programa. Ciérralo y recarga la página.',
+  insecure: 'El micrófono solo funciona en páginas seguras (https).',
+};
 
 let mapping = loadMapping(storage);
 let engine: Engine | null = null;
@@ -31,12 +38,7 @@ const ui = mountUi(document.querySelector<HTMLDivElement>('#app')!, {
       engine = await Engine.create({
         onStates: (s) => ui.setStates(s),
         onMic: (open) => ui.setMic(open),
-        onError: (kind) =>
-          ui.notice(
-            kind === 'mic-denied'
-              ? 'No hay permiso para el micrófono. Permítelo en el candado de la barra de direcciones y recarga la página.'
-              : 'El micrófono solo funciona en páginas seguras (https).',
-          ),
+        onError: (kind) => ui.notice(MIC_ERRORS[kind]),
       });
     } catch (e) {
       ui.notice(`No se pudo iniciar el audio: ${(e as Error).message}`);

@@ -41,6 +41,8 @@ export async function startMidi(
   const attach = () => {
     let first: string | undefined;
     access.inputs.forEach((input) => {
+      // Chrome deja los puertos desenchufados en la lista con state 'disconnected'.
+      if (input.state === 'disconnected') return;
       input.onmidimessage = onMessage as (ev: MIDIMessageEvent) => void;
       first ??= input.name ?? 'MIDI';
     });

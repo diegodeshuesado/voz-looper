@@ -74,3 +74,15 @@ test('desconectar y reconectar en caliente', async () => {
   again.onmidimessage!({ data: new Uint8Array([0xb0, 77, 127]) });
   expect(r.controls).toEqual(['knob8']);
 });
+
+test('puerto que queda en la lista como disconnected cuenta como desconectado', async () => {
+  const access = fakeAccess();
+  const lpd = { name: 'LPD8', state: 'connected', onmidimessage: null } as FakeInput & { state: string };
+  access.inputs.set('a', lpd);
+  const r = recorder();
+  await startMidi(() => DEFAULT_MAPPING, r.h, { requestMIDIAccess: () => Promise.resolve(access as unknown as MIDIAccess) });
+  expect(r.status.at(-1)?.[0]).toBe('connected');
+  lpd.state = 'disconnected';
+  access.onstatechange!();
+  expect(r.status.at(-1)?.[0]).toBe('disconnected');
+});
