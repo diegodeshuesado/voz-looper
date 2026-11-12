@@ -27,11 +27,27 @@ describe('FxCore', () => {
     expect(diff).toBeGreaterThan(0.1);
   });
 
+  test('robot a un tercio ya se nota mucho', () => {
+    const fx = new FxCore(SR);
+    fx.setRobot(0.33);
+    const x = signal(4800);
+    const y = proc(fx, x);
+    const diff = y.reduce((acc, v, i) => acc + Math.abs(v - x[i]), 0) / y.length;
+    expect(diff).toBeGreaterThan(0.2);
+  });
+
+  test('lo-fi a la mitad ya cuantiza fuerte', () => {
+    const fx = new FxCore(SR);
+    fx.setLofi(0.5);
+    const y = proc(fx, signal(4800));
+    expect(new Set(Array.from(y)).size).toBeLessThanOrEqual(64);
+  });
+
   test('lo-fi al máximo cuantiza a pocos niveles', () => {
     const fx = new FxCore(SR);
     fx.setLofi(1);
     const y = proc(fx, signal(4800));
-    expect(new Set(Array.from(y)).size).toBeLessThanOrEqual(16);
+    expect(new Set(Array.from(y)).size).toBeLessThanOrEqual(8);
   });
 
   test('stutter repite el último fragmento y al soltarlo vuelve la señal en vivo', () => {

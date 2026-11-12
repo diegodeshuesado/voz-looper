@@ -57,9 +57,9 @@ export class LooperCore {
     return this.base;
   }
 
-  /** Velocidad de los loops (ardilla/monstruo): 0.5 a 2. */
+  /** Velocidad de los loops (ardilla/monstruo): 0.25 a 4. */
   setRate(rate: number): void {
-    this.targetRate = Math.min(2, Math.max(0.5, rate));
+    this.targetRate = Math.min(4, Math.max(0.25, rate));
     if (this.rateCoef === 1) this.rate = this.targetRate;
   }
 

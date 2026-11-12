@@ -215,4 +215,13 @@ describe('LooperCore', () => {
     const out = run(core, fill(16, 0)).filter((v) => v !== 0);
     expect(out).toEqual([0.75, 0.75]);
   });
+
+  test('velocidad 4 (ardilla al máximo) salta de 4 en 4', () => {
+    const core = new LooperCore(SR, { smoothing: false });
+    core.tap(0);
+    run(core, Array.from({ length: 16 }, (_, i) => i));
+    core.tap(0);
+    core.setRate(4);
+    expect(run(core, fill(4, 0))).toEqual([0, 4, 8, 12]);
+  });
 });

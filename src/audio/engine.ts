@@ -1,5 +1,5 @@
 import type { Action } from '../controls';
-import { ardillaRate, echoParams, filterParams, stutterSamples } from '../fx/knobs';
+import { ardillaRate, echoParams, filterParams, reverbParams, stutterSamples } from '../fx/knobs';
 import { makeImpulse } from '../fx/reverb';
 import fxUrl from '../fx/fx-worklet.ts?worker&url';
 import type { TrackState } from '../looper/looper-core';
@@ -32,6 +32,7 @@ interface Nodes {
   echoWet: GainNode;
   echoFb: GainNode;
   revWet: GainNode;
+  revDry: GainNode;
   master: GainNode;
 }
 
@@ -93,7 +94,8 @@ export class Engine {
 
     const revIn = ctx.createGain();
     const convolver = ctx.createConvolver();
-    convolver.buffer = makeImpulse(ctx);
+    convolver.buffer = makeImpulse(ctx, 4);
+    const revDry = ctx.createGain();
     const revWet = ctx.createGain();
     revWet.gain.value = 0;
 
@@ -116,11 +118,11 @@ export class Engine {
     echoIn.connect(delay);
     delay.connect(echoWet).connect(revIn);
     delay.connect(echoFb).connect(delay);
-    revIn.connect(master);
+    revIn.connect(revDry).connect(master);
     revIn.connect(convolver).connect(revWet).connect(master);
     master.connect(limiter).connect(ctx.destination);
 
-    const engine = new Engine(ctx, { micGate, looper, fx, hp, lp, echoWet, echoFb, revWet, master }, ev);
+    const engine = new Engine(ctx, { micGate, looper, fx, hp, lp, echoWet, echoFb, revWet, revDry, master }, ev);
     await engine.connectMic();
     return engine;
   }
@@ -170,13 +172,18 @@ export class Engine {
         n.echoFb.gain.setTargetAtTime(e.feedback, t, SMOOTH);
         break;
       }
-      case 3:
-        n.revWet.gain.setTargetAtTime(v, t, SMOOTH);
+      case 3: {
+        const r = reverbParams(v);
+        n.revWet.gain.setTargetAtTime(r.wet, t, SMOOTH);
+        n.revDry.gain.setTargetAtTime(r.dry, t, SMOOTH);
         break;
+      }
       case 4: {
         const f = filterParams(v);
         n.hp.frequency.setTargetAtTime(f.hp, t, SMOOTH);
         n.lp.frequency.setTargetAtTime(f.lp, t, SMOOTH);
+        n.hp.Q.setTargetAtTime(f.q, t, SMOOTH);
+        n.lp.Q.setTargetAtTime(f.q, t, SMOOTH);
         break;
       }
       case 5:

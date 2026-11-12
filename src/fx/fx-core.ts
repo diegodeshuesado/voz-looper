@@ -12,6 +12,10 @@ export class FxCore {
   private phase = 0;
   private readonly coef: number;
 
+  private comb: Float32Array;
+  private combPos = 0;
+  private readonly combLen: number;
+
   private lofi = 0;
   private held = 0;
   private holdCount = 0;
@@ -20,6 +24,8 @@ export class FxCore {
     this.history = new Float32Array(sampleRate * 2);
     this.frag = new Float32Array(sampleRate * 2);
     this.coef = 1 - Math.exp(-1 / (0.005 * sampleRate)); // ~20 ms
+    this.combLen = Math.round(sampleRate / 100); // resonancia metálica a 100 Hz
+    this.comb = new Float32Array(this.combLen);
   }
 
   setRobot(amount: number): void {
@@ -56,16 +62,23 @@ export class FxCore {
       this.robot += (this.robotTarget - this.robot) * this.coef;
       if (this.robot < 1e-5 && this.robotTarget === 0) this.robot = 0;
       if (this.robot > 0) {
-        const freq = 30 + 270 * this.robot;
+        // Robot: modulador en anillo + resonancia metálica (filtro peine). Se satura rápido a propósito.
+        const wet = Math.min(1, 3 * this.robot);
+        const fb = 0.8 * Math.min(1, 2 * this.robot);
+        const freq = 40 + 160 * this.robot;
         this.phase += (2 * Math.PI * freq) / this.sampleRate;
         if (this.phase > 2 * Math.PI) this.phase -= 2 * Math.PI;
-        x = x * (1 - this.robot) + x * Math.sin(this.phase) * this.robot;
+        const ring = x * Math.sin(this.phase);
+        const c = ring + fb * this.comb[this.combPos];
+        this.comb[this.combPos] = c;
+        this.combPos = (this.combPos + 1) % this.combLen;
+        x = x * (1 - wet) + c * (1 - 0.5 * fb) * wet;
       }
 
       if (this.lofi > 0) {
-        const hold = 1 + Math.floor(15 * this.lofi);
+        const hold = 1 + Math.floor(39 * Math.sqrt(this.lofi));
         if (this.holdCount <= 0) {
-          const levels = 2 ** (15 - 12 * this.lofi);
+          const levels = 2 ** (15 - 13 * this.lofi ** 0.3);
           this.held = Math.round(x * levels) / levels;
           this.holdCount = hold;
         }
